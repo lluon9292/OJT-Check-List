@@ -83,6 +83,21 @@
   #comments:focus{ outline: 2px solid var(--sky); background-color:#fff; }
   .field-grid{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
 
+  .field-error{ border-color: var(--bad) !important; background:#FFF4F3 !important; }
+  select.field-error{ background-color:#FFF4F3 !important; }
+  .prefix-input{
+    display:flex; align-items:stretch; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:var(--paper);
+  }
+  .prefix-input.field-error{ border-color: var(--bad) !important; background:#FFF4F3 !important; }
+  .prefix-tag{
+    flex-shrink:0; display:flex; align-items:center; padding:0 10px; font-size:15px; font-weight:800;
+    color: var(--navy); background:#E9EEF3; border-right:1px solid var(--line);
+  }
+  .prefix-input input{
+    flex:1; min-width:0; border:none; background:transparent; padding:10px 12px; font-size:15px; color:var(--ink); font-family:inherit;
+  }
+  .prefix-input input:focus{ outline:none; background:#fff; }
+
   .group-title{
     font-size: 12px; font-weight: 800; color: var(--sky); text-transform:uppercase; letter-spacing:.06em;
     margin: 18px 4px 8px;
@@ -215,6 +230,7 @@
   const LS_HISTORY = "ojt_history";
   const LS_DRAFTS = "ojt_drafts_v2";
   const BLANK_HEADER = { date:"", position:"", empNo:"", aircraft:"", flightNo:"", trainee:"", hlNo:"", evaluator:"" };
+  const PREFIX_FIELDS = { flightNo: "WE", hlNo: "HL" };
 
   let state = {
     tab: "form",
@@ -227,8 +243,19 @@
     drafts: [],
     currentDraftId: null,
     submitting: false,
+    fieldErrors: new Set(),
   };
   let draftSaveTimer = null;
+
+  function getDigits(key){
+    const v = state.header[key] || "";
+    const p = PREFIX_FIELDS[key];
+    return p && v.startsWith(p) ? v.slice(p.length) : v;
+  }
+  function isFieldFilled(key){
+    if(PREFIX_FIELDS[key]) return getDigits(key).length > 0;
+    return !!state.header[key];
+  }
 
   function fmtDate(d){
     const p = n => String(n).padStart(2,"0");
@@ -343,14 +370,15 @@
       ["position","Position"], ["empNo","사번"], ["aircraft","Aircraft Type"],
       ["flightNo","편명"], ["trainee","피평가자"], ["hlNo","HL NO."], ["evaluator","평가자"],
     ];
-    for(const [key, label] of required){
-      if(!h[key]){
-        showToast(`${label}을(를) 입력해주세요`);
-        state.tab="form"; render();
-        document.getElementById(`field-${key}`)?.scrollIntoView({behavior:"smooth", block:"center"});
-        return;
-      }
+    const missingFields = required.filter(([key]) => !isFieldFilled(key));
+    if(missingFields.length > 0){
+      state.fieldErrors = new Set(missingFields.map(([key])=>key));
+      showToast(`${missingFields.map(([,label])=>label).join(", ")} 을(를) 입력해주세요`);
+      state.tab="form"; render();
+      document.getElementById(`field-${missingFields[0][0]}`)?.scrollIntoView({behavior:"smooth", block:"center"});
+      return;
     }
+    state.fieldErrors.clear();
     const missing = ITEMS.filter(item => !state.scores[item.key]);
     if(missing.length > 0){
       const first = missing[0];
@@ -431,21 +459,36 @@
 
   function headerField(key, label, placeholder, type){
     type = type || "text";
+    const err = state.fieldErrors.has(key) ? "field-error" : "";
     return `
       <div class="field">
         <label>${label}</label>
-        <input id="field-${key}" data-key="${key}" type="${type}" value="${state.header[key] ? escapeHtml(state.header[key]) : ""}" placeholder="${placeholder||""}" />
+        <input id="field-${key}" class="${err}" data-key="${key}" type="${type}" value="${state.header[key] ? escapeHtml(state.header[key]) : ""}" placeholder="${placeholder||""}" />
       </div>`;
   }
   function headerSelect(key, label, options){
     const cur = state.header[key] || "";
+    const err = state.fieldErrors.has(key) ? "field-error" : "";
     return `
       <div class="field">
         <label>${label}</label>
-        <select id="field-${key}" data-key="${key}">
+        <select id="field-${key}" class="${err}" data-key="${key}">
           <option value="" ${cur===""?"selected":""}>선택</option>
           ${options.map(o=>`<option value="${escapeHtml(o)}" ${cur===o?"selected":""}>${escapeHtml(o)}</option>`).join("")}
         </select>
+      </div>`;
+  }
+  function prefixField(key, label, placeholder){
+    const prefix = PREFIX_FIELDS[key];
+    const digits = getDigits(key);
+    const err = state.fieldErrors.has(key) ? "field-error" : "";
+    return `
+      <div class="field">
+        <label>${label}</label>
+        <div class="prefix-input ${err}">
+          <span class="prefix-tag">${prefix}</span>
+          <input id="field-${key}" data-key="${key}" data-prefix="${prefix}" inputmode="numeric" pattern="[0-9]*" value="${escapeHtml(digits)}" placeholder="${placeholder||""}" />
+        </div>
       </div>`;
   }
 
@@ -472,11 +515,11 @@
             ${headerSelect("aircraft","Aircraft Type *", ["A320-200","A330-200"])}
           </div>
           <div class="field-grid">
-            ${headerField("flightNo","편명 *","예: WE501")}
+            ${prefixField("flightNo","편명 *","예: 201")}
             ${headerField("trainee","피평가자 *","이름")}
           </div>
           <div class="field-grid">
-            ${headerField("hlNo","HL NO. *","기체 등록번호")}
+            ${prefixField("hlNo","HL NO. *","예: 8709")}
             ${headerField("evaluator","평가자 *","이름")}
           </div>
         </div>
@@ -613,8 +656,26 @@
       });
     });
     root.querySelectorAll("[data-key]").forEach(inp=>{
-      inp.addEventListener("input", ()=>{ state.header[inp.dataset.key] = inp.value; scheduleDraftSave(); });
-      inp.addEventListener("change", ()=>{ state.header[inp.dataset.key] = inp.value; scheduleDraftSave(); });
+      const applyValue = ()=>{
+        const key = inp.dataset.key;
+        const prefix = inp.dataset.prefix;
+        if(prefix){
+          const digits = inp.value.replace(/\D/g, "");
+          state.header[key] = digits ? (prefix + digits) : "";
+          if(inp.value !== digits) inp.value = digits; // strip any non-digit the user typed
+        } else {
+          state.header[key] = inp.value;
+        }
+        if(state.fieldErrors.has(key) && isFieldFilled(key)){
+          state.fieldErrors.delete(key);
+          inp.classList.remove("field-error");
+          const wrap = inp.closest(".prefix-input");
+          if(wrap) wrap.classList.remove("field-error");
+        }
+        scheduleDraftSave();
+      };
+      inp.addEventListener("input", applyValue);
+      inp.addEventListener("change", applyValue);
     });
     const cm = document.getElementById("comments");
     if(cm) cm.addEventListener("input", ()=>{ state.comments = cm.value; scheduleDraftSave(); });
