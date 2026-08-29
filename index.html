@@ -108,6 +108,8 @@
     padding: 13px 14px; margin-bottom: 10px;
   }
   .item.rated{ border-color: #BFE0CC; background: #FBFEFC; }
+  .item.item-error{ border-color: var(--bad); background: #FFF4F3; }
+  .item.item-error .item-no{ background: var(--bad); color:#fff; }
   .item-head{ display:flex; gap:10px; margin-bottom: 10px; }
   .item-no{
     flex-shrink:0; width:26px; height:26px; border-radius:8px; background: var(--sky-light); color: var(--navy);
@@ -244,6 +246,7 @@
     currentDraftId: null,
     submitting: false,
     fieldErrors: new Set(),
+    itemErrors: new Set(),
   };
   let draftSaveTimer = null;
 
@@ -349,6 +352,7 @@
 
   function setScore(no, val){
     state.scores[no] = state.scores[no] === val ? null : val;
+    if(state.scores[no]) state.itemErrors.delete(no);
     scheduleDraftSave();
     render();
   }
@@ -382,11 +386,13 @@
     const missing = ITEMS.filter(item => !state.scores[item.key]);
     if(missing.length > 0){
       const first = missing[0];
+      state.itemErrors = new Set(missing.map(item=>item.key));
       showToast(`${missing.length}개 항목이 비어있어요 (${first.no}번부터 확인해주세요)`);
       state.tab = "form"; render();
       document.getElementById(`item-${first.key}`)?.scrollIntoView({behavior:"smooth", block:"center"});
       return;
     }
+    state.itemErrors.clear();
 
     const payload = {
       ts: Date.now(),
@@ -423,7 +429,7 @@
       state.currentDraftId = null;
       state.tab = "history";
       state.submitting = false;
-      showToast(synced ? "제출 완료 · 구글 시트로 전송됨" : "오프라인 상태예요 · 이 기기에 저장됨, 온라인 되면 재전송 버튼을 눌러주세요");
+      showToast(synced ? "제출 완료" : "오프라인 상태예요 · 이 기기에 저장됨, 온라인 되면 재전송 버튼을 눌러주세요");
       render();
     }
 
@@ -450,7 +456,7 @@
     }).then(function(){
       p.synced = true;
       saveHistory();
-      showToast("재전송 완료 · 구글 시트로 전송됨");
+      showToast("재전송 완료");
       render();
     }).catch(function(){
       showToast("여전히 오프라인이에요");
@@ -529,11 +535,12 @@
       html += `<div class="section" style="padding-top:0"><div class="group-title">${g}</div>`;
       for(const item of ITEMS.filter(i=>i.group===g)){
         const val = state.scores[item.key] || null;
+        const itemErr = state.itemErrors.has(item.key) ? "item-error" : "";
         const dutyBadge = item.duty ? `<span style="display:inline-block;font-size:10.5px;font-weight:800;color:var(--sky);background:var(--sky-light);padding:1px 7px;border-radius:99px;margin-bottom:5px;">${escapeHtml(item.duty)}</span><br/>` : "";
         if(item.choice){
           const chosen = state.optionChoice[item.key];
           html += `
-            <div class="item ${val?'rated':''}" id="item-${item.key}">
+            <div class="item ${val?'rated':''} ${itemErr}" id="item-${item.key}">
               <div class="item-head">
                 <div class="item-no">${item.no}</div>
                 <div class="item-text">
@@ -553,7 +560,7 @@
             </div>`;
         } else {
           html += `
-            <div class="item ${val?'rated':''}" id="item-${item.key}">
+            <div class="item ${val?'rated':''} ${itemErr}" id="item-${item.key}">
               <div class="item-head">
                 <div class="item-no">${item.no}</div>
                 <div class="item-text">${dutyBadge}${escapeHtml(item.text)}</div>
@@ -585,7 +592,7 @@
       <div class="history-item">
         <div class="row1">
           <span>${escapeHtml(h.trainee||"피평가자 없음")} · ${h.total}/${h.maxScore}점</span>
-          <span class="badge ${h.synced?'synced':'pending'}">${h.synced ? '구글 시트에 저장됨' : '전송 대기중'}</span>
+          <span class="badge ${h.synced?'synced':'pending'}">${h.synced ? '제출 완료' : '전송 대기중'}</span>
         </div>
         <div class="row2">${escapeHtml(h.submittedAt||"")} · ${escapeHtml(h.evaluator||"평가자 미입력")} · ${escapeHtml(h.flightNo||"")} · ${escapeHtml(h.aircraft||"")} ${escapeHtml(h.position||"")}</div>
         ${!h.synced ? `<button class="retry-btn" data-ts="${h.ts}" style="margin-top:8px; width:100%;">↻ 다시 전송</button>` : ``}
