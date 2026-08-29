@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0F2A43">
+<link rel="manifest" href="manifest.json">
+<title>ON THE JOB TRAINING 평가</title>
+<style>
+  :root{
+    --navy: #0F2A43;
+    --navy-2: #163A5C;
+    --sky: #2E7FBF;
+    --sky-light: #E7F1FA;
+    --paper: #F6F7F9;
+    --line: #DDE3EA;
+    --ink: #16202B;
+    --muted: #6B7A88;
+    --good: #2E9E5B;
+    --warn: #D97706;
+    --bad: #C0392B;
+    --radius: 14px;
+  }
+  *{ box-sizing: border-box; }
+  html, body{ margin:0; padding:0; background: var(--paper);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
+  #app-root{
+    max-width: 560px;
+    margin: 0 auto;
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+    padding-bottom: 96px;
+  }
+  .topbar{
+    position: sticky; top:0; z-index: 30;
+    background: linear-gradient(135deg, var(--navy), var(--navy-2));
+    color: #fff;
+    padding: 16px 18px 14px;
+  }
+  .topbar .eyebrow{
+    font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+    color: #9FC3E6; font-weight: 700; margin-bottom: 4px;
+  }
+  .topbar h1{ font-size: 19px; margin: 0 0 10px; font-weight: 800; letter-spacing: -0.01em;}
+  .progress-row{ display:flex; align-items:center; gap:10px; }
+  .progress-track{
+    flex:1; height:8px; background: rgba(255,255,255,.18); border-radius:99px; overflow:hidden;
+  }
+  .progress-fill{ height:100%; background: linear-gradient(90deg,#5BA8E0,#8FD3B5); width:0%; transition: width .25s ease; }
+  .progress-label{ font-size: 12px; color:#CFE3F5; font-weight:700; white-space:nowrap;}
+
+  .tabs{ display:flex; gap:6px; padding: 10px 14px 0; }
+  .tab{
+    flex:1; text-align:center; padding:9px 6px; border-radius: 10px 10px 0 0;
+    font-size:13px; font-weight:700; color: var(--muted); background: transparent; border:none; cursor:pointer;
+  }
+  .tab.active{ background: var(--paper); color: var(--navy); }
+
+  .section{ padding: 14px 14px 4px; }
+  .card{
+    background:#fff; border:1px solid var(--line); border-radius: var(--radius);
+    padding: 14px; margin-bottom: 12px;
+  }
+  .card h2{ font-size:14px; margin:0 0 10px; color: var(--navy); font-weight:800; }
+
+  .field{ margin-bottom: 10px; }
+  .field label{ display:block; font-size:12px; color: var(--muted); font-weight:700; margin-bottom:4px; }
+  .field input, .field textarea, .field select{
+    width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px;
+    font-size:15px; background: var(--paper); color: var(--ink); font-family: inherit;
+  }
+  .field select{ appearance: none; -webkit-appearance:none; background-repeat:no-repeat; background-position: right 10px center; background-size: 18px; padding-right: 32px; }
+  .field input:focus, .field textarea:focus, .field select:focus{ outline: 2px solid var(--sky); background-color:#fff; }
+  .field input[type="date"]{ min-height: 42px; text-align:left; -webkit-appearance:none; appearance:none; padding:10px 12px; }
+  #comments{
+    width:100%; box-sizing:border-box; min-height: 160px; resize: vertical; line-height: 1.5;
+    padding:10px 12px; border:1px solid var(--line); border-radius:10px;
+    font-size:15px; background: var(--paper); color: var(--ink); font-family: inherit;
+  }
+  #comments:focus{ outline: 2px solid var(--sky); background-color:#fff; }
+  .field-grid{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+
+  .group-title{
+    font-size: 12px; font-weight: 800; color: var(--sky); text-transform:uppercase; letter-spacing:.06em;
+    margin: 18px 4px 8px;
+  }
+
+  .item{
+    background:#fff; border:1px solid var(--line); border-radius: var(--radius);
+    padding: 13px 14px; margin-bottom: 10px;
+  }
+  .item.rated{ border-color: #BFE0CC; background: #FBFEFC; }
+  .item-head{ display:flex; gap:10px; margin-bottom: 10px; }
+  .item-no{
+    flex-shrink:0; width:26px; height:26px; border-radius:8px; background: var(--sky-light); color: var(--navy);
+    font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center;
+  }
+  .item-text{ font-size: 13.5px; line-height:1.45; color: var(--ink); }
+  .rate-row{ display:flex; gap:6px; }
+  .rate-btn{
+    flex:1; padding: 10px 0; border-radius:10px; border:1px solid var(--line); background: var(--paper);
+    font-size:14px; font-weight:800; color: var(--muted); cursor:pointer;
+  }
+  .rate-btn[data-v="5"].on{ background:#2E9E5B; border-color:#2E9E5B; color:#fff; }
+  .rate-btn[data-v="4"].on{ background:#5CB37A; border-color:#5CB37A; color:#fff; }
+  .rate-btn[data-v="3"].on{ background:#D9A441; border-color:#D9A441; color:#fff; }
+  .rate-btn[data-v="2"].on{ background:#D9773F; border-color:#D9773F; color:#fff; }
+  .rate-btn[data-v="1"].on{ background:#C0392B; border-color:#C0392B; color:#fff; }
+
+  .choice-hint{ display:block; font-size:11px; color:var(--muted); font-weight:700; margin: 2px 0 6px; }
+  .choice-list{ display:flex; flex-direction:column; gap:6px; margin-bottom: 4px; }
+  .choice-opt{
+    display:flex; align-items:flex-start; gap:8px; text-align:left; width:100%;
+    padding:9px 10px; border-radius:10px; border:1px solid var(--line); background: var(--paper);
+    font-size:13px; line-height:1.4; color: var(--ink); cursor:pointer;
+  }
+  .choice-opt.on{ border-color: var(--sky); background: var(--sky-light); font-weight:700; }
+  .choice-dot{ flex-shrink:0; color: var(--sky); font-size:13px; line-height:1.4; }
+
+  .draft-banner{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    background:#FFF7E6; border:1px solid #F1D9A3; border-radius: var(--radius); padding:12px 14px;
+  }
+  .draft-text{ font-size:12.5px; color:#7A5B12; line-height:1.4; }
+  .draft-actions{ display:flex; gap:6px; flex-shrink:0; }
+  .btn-ghost.small, .btn-primary.small{ padding:8px 10px; font-size:12px; flex:none; white-space:nowrap; border-radius:10px; border:1px solid var(--line); background:#fff; font-weight:700; cursor:pointer; }
+  .btn-primary.small{ background:var(--navy); color:#fff; border:none; }
+
+  .bottombar{
+    position: fixed; bottom:0; left:50%; transform:translateX(-50%);
+    width:100%; max-width: 560px; background:#fff; border-top:1px solid var(--line);
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    display:flex; align-items:center; gap:12px; z-index: 40;
+    box-shadow: 0 -6px 18px rgba(15,42,67,.08);
+  }
+  .bottombar .total{ font-size:12px; color:var(--muted); font-weight:700; }
+  .bottombar .total b{ font-size:20px; color: var(--navy); display:block; line-height:1; }
+  .submit-btn{
+    flex:1; background: var(--navy); color:#fff; border:none; border-radius: 12px;
+    padding: 14px; font-size:15px; font-weight:800; cursor:pointer;
+  }
+  .submit-btn:disabled{ opacity:.5; }
+
+  .history-item{
+    background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:10px;
+  }
+  .history-item .row1{ display:flex; justify-content:space-between; font-size:13px; font-weight:800; color:var(--navy); }
+  .history-item .row2{ font-size:12px; color:var(--muted); margin-top:3px; }
+  .badge{ display:inline-block; padding:2px 8px; border-radius:99px; font-size:11px; font-weight:800; }
+  .badge.synced{ background:#E4F5EA; color:var(--good); }
+  .badge.pending{ background:#FCEEDC; color:var(--warn); }
+  .copy-row-btn{
+    flex:1; padding:8px; border-radius:8px; border:1px solid var(--line);
+    background:var(--paper); color:var(--navy); font-size:12px; font-weight:800; cursor:pointer;
+  }
+  .retry-btn{
+    flex:1; padding:8px; border-radius:8px; border:1px dashed var(--line);
+    background:#fff; font-size:12px; font-weight:800; cursor:pointer;
+  }
+  .draft-save-btn{
+    flex:none; background:#fff; color:var(--navy); border:1.5px solid var(--navy); border-radius: 12px;
+    padding: 14px 16px; font-size:14px; font-weight:800; cursor:pointer; white-space:nowrap;
+  }
+
+  .empty{ text-align:center; padding: 40px 20px; color:var(--muted); font-size:13px; }
+  .link-note{ font-size:11.5px; color:var(--muted); line-height:1.5; padding: 0 4px; }
+  .toast{
+    position: fixed; top: 14px; left:50%; transform:translateX(-50%); z-index:60;
+    background: var(--navy); color:#fff; padding:10px 18px; border-radius:99px; font-size:13px; font-weight:700;
+    box-shadow: 0 6px 20px rgba(0,0,0,.25); max-width: 90vw; text-align:center;
+  }
+</style>
+</head>
+<body>
+<div id="app-root"></div>
+<script>
+(function(){
+  const ITEMS = [
+    {no:"1", key:"1", duty:"", text:"비행 전 학습 내용 (CCOM 내용, 해당 편 PAX 정보, 해당 편수 항공기 Information, 최신 업무 지시/공지 등)을 숙지하였는가", group:"비행 전"},
+    {no:"2", key:"2", duty:"", text:"비행 필수 프로그램을 숙지 및 활용하여 Show up과 음주측정을 진행하였으며 필수 휴대품을 소지하였는가", group:"비행 전"},
+    {no:"3", key:"3", duty:"", text:"승객 탑승 전 업무 (비상/보안 장비, Comm. System, ELS, 비상벨, 보안 점검 등) 및 보고절차에 대해 숙지하였는가", group:"승객 탑승 전"},
+    {no:"4", key:"4", duty:"", text:"SVC Item, Catering Item 및 설비(GLY, LAV) 점검에 대해 숙지하였는가", group:"승객 탑승 전"},
+    {no:"5", key:"5", duty:"탑승권 검사 Duty", choice:true, options:[
+      "밝은 표정과 적극적인 자세로 승객을 응대하며 탑승권을 정확히 확인할 수 있는가",
+      "좌/우 방향 및 열 번호 정확히 안내하며 도움이 필요한 승객을 사전에 파악하고 해당 내용을 공유하는가",
+    ], group:"승객 탑승 시"},
+    {no:"6", key:"6", duty:"Aisle Care Duty", choice:true, options:[
+      "밝은 표정과 적극적인 자세로 승객 응대하며 규정에 맞게 승객에게 안내 및 지원을 하는가 (비상구열 브리핑 포함)",
+      "도움이 필요한 승객을 사전에 파악하고 해당 내용을 공유하는가 (Special PAX 등)",
+    ], group:"승객 탑승 시"},
+    {no:"7", key:"7", duty:"", text:"모든 승객 탑승 완료 후 Door Close 절차 및 준비완료 보고 절차를 수행할 수 있는가", group:"이륙 전"},
+    {no:"8", key:"8", duty:"", text:"Push back 이후 Safety CHK, Welcome 인사, DEMO Position을 숙지하였는가", group:"이륙 전"},
+    {no:"9", key:"9", duty:"", text:"Safety Demonstration을 효과적으로 시연하는가", group:"이륙 전"},
+    {no:"10", key:"10", duty:"", text:"30 Second Review 사항을 숙지하였는가", group:"이/착륙 시"},
+    {no:"11", key:"11", duty:"", text:"국내선 및 국제선 서비스 Procedure에 대해 숙지하였는가", group:"비행 중"},
+    {no:"12", key:"12", duty:"", text:"기내방송 Flow 및 시점별 방송을 숙지하였는가", group:"비행 중"},
+    {no:"13", key:"13", duty:"", text:"음료 Cart 상단 Setting 방법 및 절차에 대해 숙지하였는가", group:"비행 중"},
+    {no:"14", key:"14", duty:"", text:"Cart를 안정적으로 운영할 수 있는가 (Lock/Latch, 2인 1조 등)", group:"비행 중"},
+    {no:"15", key:"15", duty:"", text:"음료 제공 시 Standard Motion을 준수하며 서비스를 하는가", group:"비행 중"},
+    {no:"16", key:"16", duty:"", text:"Lounge on Board 및 Duty Free Sales 주문 인입 시 효과적으로 승객을 응대할 수 있는가", group:"비행 중"},
+    {no:"17", key:"17", duty:"", text:"LAV Cleaning 항목을 숙지하였으며 주기적으로 수행하는가", group:"비행 중"},
+    {no:"18", key:"18", duty:"", text:"승객 하기 후 잔류 승객 보고, L/B CHK 및 보안점검 절차를 수행하는가", group:"승객 하기 시"},
+    {no:"19", key:"19", duty:"", text:"Sealing 및 인수인계서 작성 절차를 정확하게 수행하는가", group:"승객 하기 시"},
+    {no:"20", key:"20", duty:"", text:"긍정적인 태도와 팀워크를 바탕으로 업무에 임하는가", group:"기타"},
+  ];
+  // ▼▼▼ 여기에 본인의 Apps Script 웹 앱 URL을 붙여넣으세요 ▼▼▼
+  const WEBHOOK_URL = "여기에_Apps_Script_URL_붙여넣기";
+  // ▲▲▲ 예: https://script.google.com/macros/s/AKfycb.../exec ▲▲▲
+
+  const MAX_SCORE = ITEMS.length * 5;
+  const GROUPS = [...new Set(ITEMS.map(i=>i.group))];
+  const LS_HISTORY = "ojt_history";
+  const LS_DRAFTS = "ojt_drafts_v2";
+  const BLANK_HEADER = { date:"", position:"", empNo:"", aircraft:"", flightNo:"", trainee:"", hlNo:"", evaluator:"" };
+
+  let state = {
+    tab: "form",
+    header: { ...BLANK_HEADER },
+    scores: {},
+    optionChoice: {},
+    comments: "",
+    toast: null,
+    history: [],
+    drafts: [],
+    currentDraftId: null,
+    submitting: false,
+  };
+  let draftSaveTimer = null;
+
+  function fmtDate(d){
+    const p = n => String(n).padStart(2,"0");
+    return `${d.getFullYear()}.${p(d.getMonth()+1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  function escapeHtml(s){ return (s+"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+  function genId(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+  function loadLocal(){
+    try{ state.history = JSON.parse(localStorage.getItem(LS_HISTORY) || "[]"); }catch(e){ state.history = []; }
+    try{ state.drafts = JSON.parse(localStorage.getItem(LS_DRAFTS) || "[]"); }catch(e){ state.drafts = []; }
+    pruneOldHistory();
+    sortHistory();
+  }
+  function sortHistory(){
+    state.history.sort((a,b)=> (b.ts||0) - (a.ts||0));
+  }
+  function pruneOldHistory(){
+    const ONE_MONTH = 30 * 24 * 60 * 60 * 1000;
+    const cutoff = Date.now() - ONE_MONTH;
+    const before = state.history.length;
+    state.history = state.history.filter(h => (h.ts||0) >= cutoff);
+    if(state.history.length !== before) saveHistory();
+  }
+  function saveHistory(){
+    try{ localStorage.setItem(LS_HISTORY, JSON.stringify(state.history)); }catch(e){}
+  }
+  function saveDrafts(){
+    try{ localStorage.setItem(LS_DRAFTS, JSON.stringify(state.drafts)); }catch(e){}
+  }
+  function hasFormContent(){
+    const h = state.header;
+    return Object.values(h).some(v=>v) || Object.keys(state.scores).some(k=>state.scores[k]) || !!state.comments;
+  }
+
+  // Continuously (silently) keeps the in-progress form backed up as a draft,
+  // regardless of how many items are filled in — this is what makes it safe
+  // to work fully offline and across app restarts.
+  function upsertCurrentDraft(){
+    if(!hasFormContent()) return;
+    if(!state.currentDraftId) state.currentDraftId = genId();
+    const snapshot = {
+      id: state.currentDraftId,
+      header: state.header, scores: state.scores, optionChoice: state.optionChoice,
+      comments: state.comments, savedAt: Date.now(),
+    };
+    const idx = state.drafts.findIndex(d=>d.id===state.currentDraftId);
+    if(idx >= 0) state.drafts[idx] = snapshot; else state.drafts.unshift(snapshot);
+    saveDrafts();
+  }
+  function scheduleDraftSave(){
+    clearTimeout(draftSaveTimer);
+    draftSaveTimer = setTimeout(upsertCurrentDraft, 800);
+  }
+  function manualSaveDraft(){
+    clearTimeout(draftSaveTimer);
+    if(!hasFormContent()){ showToast("저장할 내용이 없어요"); return; }
+    upsertCurrentDraft();
+    state.header = { ...BLANK_HEADER };
+    state.scores = {};
+    state.optionChoice = {};
+    state.comments = "";
+    state.currentDraftId = null;
+    showToast("임시저장 완료 · 새 평가를 작성할 수 있어요");
+    render();
+  }
+  function loadDraft(id){
+    const d = state.drafts.find(x=>x.id===id);
+    if(!d) return;
+    state.header = { ...BLANK_HEADER, ...d.header };
+    state.scores = { ...d.scores };
+    state.optionChoice = { ...d.optionChoice };
+    state.comments = d.comments || "";
+    state.currentDraftId = d.id;
+    state.tab = "form";
+    render();
+  }
+  function deleteDraft(id){
+    state.drafts = state.drafts.filter(d=>d.id!==id);
+    saveDrafts();
+    if(state.currentDraftId === id){
+      state.header = { ...BLANK_HEADER };
+      state.scores = {}; state.optionChoice = {}; state.comments = ""; state.currentDraftId = null;
+    }
+    showToast("임시저장본을 삭제했어요");
+    render();
+  }
+
+  function totalScore(){ return Object.values(state.scores).reduce((a,b)=>a+(b||0),0); }
+  function ratedCount(){ return Object.keys(state.scores).filter(k=>state.scores[k]).length; }
+
+  function setScore(no, val){
+    state.scores[no] = state.scores[no] === val ? null : val;
+    scheduleDraftSave();
+    render();
+  }
+  function selectOption(key, idx){
+    state.optionChoice[key] = idx;
+    scheduleDraftSave();
+    render();
+  }
+  function showToast(msg){
+    state.toast = msg;
+    render();
+    setTimeout(()=>{ state.toast = null; render(); }, 2600);
+  }
+
+  function submitForm(){
+    if(state.submitting) return;
+    const h = state.header;
+    const required = [
+      ["position","Position"], ["empNo","사번"], ["aircraft","Aircraft Type"],
+      ["flightNo","편명"], ["trainee","피평가자"], ["hlNo","HL NO."], ["evaluator","평가자"],
+    ];
+    for(const [key, label] of required){
+      if(!h[key]){
+        showToast(`${label}을(를) 입력해주세요`);
+        state.tab="form"; render();
+        document.getElementById(`field-${key}`)?.scrollIntoView({behavior:"smooth", block:"center"});
+        return;
+      }
+    }
+    const missing = ITEMS.filter(item => !state.scores[item.key]);
+    if(missing.length > 0){
+      const first = missing[0];
+      showToast(`${missing.length}개 항목이 비어있어요 (${first.no}번부터 확인해주세요)`);
+      state.tab = "form"; render();
+      document.getElementById(`item-${first.key}`)?.scrollIntoView({behavior:"smooth", block:"center"});
+      return;
+    }
+
+    const payload = {
+      ts: Date.now(),
+      submittedAt: fmtDate(new Date()),
+      date: h.date, position: h.position, empNo: h.empNo, aircraft: h.aircraft,
+      flightNo: h.flightNo, trainee: h.trainee, hlNo: h.hlNo, evaluator: h.evaluator,
+      scores: state.scores,
+      optionChoice: Object.fromEntries(
+        ITEMS.filter(i=>i.choice && state.optionChoice[i.key] != null)
+          .map(i=>[i.key, i.options[state.optionChoice[i.key]]])
+      ),
+      total: totalScore(),
+      maxScore: MAX_SCORE,
+      comments: state.comments,
+    };
+
+    state.submitting = true;
+    render();
+
+    function finalizeAfterSend(synced){
+      payload.synced = synced;
+      state.history.unshift(payload);
+      pruneOldHistory();
+      sortHistory();
+      saveHistory();
+      if(state.currentDraftId){
+        state.drafts = state.drafts.filter(d=>d.id!==state.currentDraftId);
+        saveDrafts();
+      }
+      state.header = { ...BLANK_HEADER };
+      state.scores = {};
+      state.optionChoice = {};
+      state.comments = "";
+      state.currentDraftId = null;
+      state.tab = "history";
+      state.submitting = false;
+      showToast(synced ? "제출 완료 · 구글 시트로 전송됨" : "오프라인 상태예요 · 이 기기에 저장됨, 온라인 되면 재전송 버튼을 눌러주세요");
+      render();
+    }
+
+    fetch(WEBHOOK_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload),
+    }).then(function(){
+      finalizeAfterSend(true); // no-cors: can't read the response, so a resolved fetch is treated as delivered
+    }).catch(function(){
+      finalizeAfterSend(false); // true network-level failure (offline, DNS, etc.)
+    });
+  }
+
+  function retrySubmission(ts){
+    const p = state.history.find(h=>h.ts===ts);
+    if(!p) return;
+    fetch(WEBHOOK_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(p),
+    }).then(function(){
+      p.synced = true;
+      saveHistory();
+      showToast("재전송 완료 · 구글 시트로 전송됨");
+      render();
+    }).catch(function(){
+      showToast("여전히 오프라인이에요");
+    });
+  }
+
+  function headerField(key, label, placeholder, type){
+    type = type || "text";
+    return `
+      <div class="field">
+        <label>${label}</label>
+        <input id="field-${key}" data-key="${key}" type="${type}" value="${state.header[key] ? escapeHtml(state.header[key]) : ""}" placeholder="${placeholder||""}" />
+      </div>`;
+  }
+  function headerSelect(key, label, options){
+    const cur = state.header[key] || "";
+    return `
+      <div class="field">
+        <label>${label}</label>
+        <select id="field-${key}" data-key="${key}">
+          <option value="" ${cur===""?"selected":""}>선택</option>
+          ${options.map(o=>`<option value="${escapeHtml(o)}" ${cur===o?"selected":""}>${escapeHtml(o)}</option>`).join("")}
+        </select>
+      </div>`;
+  }
+
+  function renderForm(){
+    let html = ``;
+    if(state.currentDraftId){
+      html += `
+      <div class="section">
+        <div class="draft-banner">
+          <div class="draft-text"><b>임시저장함에 있는 평가를 수정 중이에요</b><br/>제출하면 임시저장함에서 자동으로 사라져요</div>
+        </div>
+      </div>`;
+    }
+    html += `
+      <div class="section">
+        <div class="card">
+          <h2>평가 정보</h2>
+          <div class="field-grid">
+            ${headerField("date","일자","", "date")}
+            ${headerField("position","Position *","예: L2")}
+          </div>
+          <div class="field-grid">
+            ${headerField("empNo","사번 *","사번 입력")}
+            ${headerSelect("aircraft","Aircraft Type *", ["A320-200","A330-200"])}
+          </div>
+          <div class="field-grid">
+            ${headerField("flightNo","편명 *","예: WE501")}
+            ${headerField("trainee","피평가자 *","이름")}
+          </div>
+          <div class="field-grid">
+            ${headerField("hlNo","HL NO. *","기체 등록번호")}
+            ${headerField("evaluator","평가자 *","이름")}
+          </div>
+        </div>
+      </div>`;
+
+    for(const g of GROUPS){
+      html += `<div class="section" style="padding-top:0"><div class="group-title">${g}</div>`;
+      for(const item of ITEMS.filter(i=>i.group===g)){
+        const val = state.scores[item.key] || null;
+        const dutyBadge = item.duty ? `<span style="display:inline-block;font-size:10.5px;font-weight:800;color:var(--sky);background:var(--sky-light);padding:1px 7px;border-radius:99px;margin-bottom:5px;">${escapeHtml(item.duty)}</span><br/>` : "";
+        if(item.choice){
+          const chosen = state.optionChoice[item.key];
+          html += `
+            <div class="item ${val?'rated':''}" id="item-${item.key}">
+              <div class="item-head">
+                <div class="item-no">${item.no}</div>
+                <div class="item-text">
+                  ${dutyBadge}
+                  <span class="choice-hint">해당하는 상황 1가지를 선택하세요 (택1)</span>
+                  <div class="choice-list">
+                    ${item.options.map((opt,i)=>`
+                      <button class="choice-opt ${chosen===i?'on':''}" data-key="${item.key}" data-idx="${i}">
+                        <span class="choice-dot">${chosen===i?'●':'○'}</span>${escapeHtml(opt)}
+                      </button>`).join("")}
+                  </div>
+                </div>
+              </div>
+              <div class="rate-row" style="${chosen===undefined||chosen===null?'opacity:.4;pointer-events:none;':''}">
+                ${[5,4,3,2,1].map(v=>`<button class="rate-btn ${val===v?'on':''}" data-v="${v}" data-item="${item.key}">${v}</button>`).join("")}
+              </div>
+            </div>`;
+        } else {
+          html += `
+            <div class="item ${val?'rated':''}" id="item-${item.key}">
+              <div class="item-head">
+                <div class="item-no">${item.no}</div>
+                <div class="item-text">${dutyBadge}${escapeHtml(item.text)}</div>
+              </div>
+              <div class="rate-row">
+                ${[5,4,3,2,1].map(v=>`<button class="rate-btn ${val===v?'on':''}" data-v="${v}" data-item="${item.key}">${v}</button>`).join("")}
+              </div>
+            </div>`;
+        }
+      }
+      html += `</div>`;
+    }
+
+    html += `
+      <div class="section">
+        <div class="card">
+          <h2>General Comments</h2>
+          <textarea id="comments" rows="8" placeholder="종합 의견을 입력하세요">${escapeHtml(state.comments)}</textarea>
+        </div>
+      </div>`;
+    return html;
+  }
+
+  function renderHistory(){
+    if(!state.history.length){
+      return `<div class="section"><div class="empty">아직 제출된 평가가 없어요.<br/>평가 탭에서 체크리스트를 작성해 제출해보세요.</div></div>`;
+    }
+    return `<div class="section">` + state.history.map(h => `
+      <div class="history-item">
+        <div class="row1">
+          <span>${escapeHtml(h.trainee||"피평가자 없음")} · ${h.total}/${h.maxScore}점</span>
+          <span class="badge ${h.synced?'synced':'pending'}">${h.synced ? '구글 시트에 저장됨' : '전송 대기중'}</span>
+        </div>
+        <div class="row2">${escapeHtml(h.submittedAt||"")} · ${escapeHtml(h.evaluator||"평가자 미입력")} · ${escapeHtml(h.flightNo||"")} · ${escapeHtml(h.aircraft||"")} ${escapeHtml(h.position||"")}</div>
+        ${!h.synced ? `<button class="retry-btn" data-ts="${h.ts}" style="margin-top:8px; width:100%;">↻ 다시 전송</button>` : ``}
+      </div>
+    `).join("") + `</div>`;
+  }
+
+  function renderDrafts(){
+    if(!state.drafts.length){
+      return `<div class="section"><div class="empty">임시저장된 평가가 없어요.<br/>평가 작성 중 "임시저장" 버튼을 누르면 여기 쌓여요.<br/>(입력 중인 내용은 항목 개수와 상관없이 자동으로도 저장돼요)</div></div>`;
+    }
+    return `<div class="section">` + state.drafts.map(d => {
+      const rated = Object.keys(d.scores||{}).filter(k=>d.scores[k]).length;
+      const savedAt = d.savedAt ? fmtDate(new Date(d.savedAt)) : "";
+      return `
+      <div class="history-item">
+        <div class="row1">
+          <span>${escapeHtml((d.header&&d.header.trainee) || "피평가자 미입력")} · ${rated}/${ITEMS.length} 항목</span>
+        </div>
+        <div class="row2">${savedAt} 저장됨 · ${escapeHtml((d.header&&d.header.aircraft)||"기종 미입력")}</div>
+        <div style="display:flex; gap:6px; margin-top:8px;">
+          <button class="copy-row-btn" data-load="${d.id}">이어서 작성</button>
+          <button class="retry-btn" data-del="${d.id}" style="margin-top:0; color:var(--bad);">삭제</button>
+        </div>
+      </div>`;
+    }).join("") + `</div>`;
+  }
+
+  function render(){
+    const root = document.getElementById("app-root");
+    const pct = Math.round((ratedCount()/ITEMS.length)*100);
+    root.innerHTML = `
+      <div class="topbar">
+        <div class="eyebrow">Parata Air · Cabin Crew</div>
+        <h1>ON THE JOB TRAINING 평가</h1>
+        <div class="progress-row">
+          <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+          <div class="progress-label">${ratedCount()}/${ITEMS.length} 항목</div>
+        </div>
+      </div>
+      <div class="tabs">
+        <button class="tab ${state.tab==='form'?'active':''}" data-tab="form">평가 작성</button>
+        <button class="tab ${state.tab==='drafts'?'active':''}" data-tab="drafts">임시저장 (${state.drafts.length})</button>
+        <button class="tab ${state.tab==='history'?'active':''}" data-tab="history">제출 내역 (${state.history.length})</button>
+      </div>
+      ${state.tab === 'history' ? `<div class="section" style="padding-bottom:0"><div class="link-note" style="margin:0;">최근 제출한 순서로 표시되며, 제출 1개월이 지난 내역은 이 기기에서 자동으로 삭제돼요 (구글 시트 원본은 그대로 남아있어요)</div></div>` : ``}
+      ${state.tab === 'form' ? renderForm() : (state.tab === 'drafts' ? renderDrafts() : renderHistory())}
+      ${state.tab === 'form' ? `
+      <div class="bottombar">
+        <button class="draft-save-btn" id="draft-save-btn">임시저장</button>
+        <div class="total">총점<b>${totalScore()}/${MAX_SCORE}</b></div>
+        <button class="submit-btn" id="submit-btn" ${state.submitting?'disabled':''}>${state.submitting ? "전송 중..." : (ratedCount() < ITEMS.length ? `제출 (${ITEMS.length - ratedCount()}개 남음)` : "제출하기")}</button>
+      </div>` : ``}
+      ${state.toast ? `<div class="toast">${escapeHtml(state.toast)}</div>` : ``}
+    `;
+
+    root.querySelectorAll(".rate-btn").forEach(btn=>{
+      btn.addEventListener("click", ()=> setScore(btn.dataset.item, parseInt(btn.dataset.v,10)));
+    });
+    root.querySelectorAll(".choice-opt").forEach(btn=>{
+      btn.addEventListener("click", ()=> selectOption(btn.dataset.key, parseInt(btn.dataset.idx,10)));
+    });
+    root.querySelectorAll(".tab").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        state.tab = btn.dataset.tab;
+        if(state.tab === "history"){ pruneOldHistory(); sortHistory(); }
+        render();
+      });
+    });
+    root.querySelectorAll("[data-key]").forEach(inp=>{
+      inp.addEventListener("input", ()=>{ state.header[inp.dataset.key] = inp.value; scheduleDraftSave(); });
+      inp.addEventListener("change", ()=>{ state.header[inp.dataset.key] = inp.value; scheduleDraftSave(); });
+    });
+    const cm = document.getElementById("comments");
+    if(cm) cm.addEventListener("input", ()=>{ state.comments = cm.value; scheduleDraftSave(); });
+    const sb = document.getElementById("submit-btn");
+    if(sb) sb.addEventListener("click", submitForm);
+    const dsb = document.getElementById("draft-save-btn");
+    if(dsb) dsb.addEventListener("click", manualSaveDraft);
+    root.querySelectorAll("[data-load]").forEach(btn=>{
+      btn.addEventListener("click", ()=> loadDraft(btn.dataset.load));
+    });
+    root.querySelectorAll("[data-del]").forEach(btn=>{
+      btn.addEventListener("click", ()=> deleteDraft(btn.dataset.del));
+    });
+    root.querySelectorAll("[data-ts]").forEach(btn=>{
+      btn.addEventListener("click", ()=> retrySubmission(parseFloat(btn.dataset.ts)));
+    });
+  }
+
+  loadLocal();
+  render();
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function(){
+      navigator.serviceWorker.register('sw.js').catch(function(){});
+    });
+  }
+})();
+</script>
+</body>
+</html>
