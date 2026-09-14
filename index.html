@@ -73,6 +73,7 @@
     font-size:15px; background: var(--paper); color: var(--ink); font-family: inherit;
   }
   .field select{ appearance: none; -webkit-appearance:none; background-repeat:no-repeat; background-position: right 10px center; background-size: 18px; padding-right: 32px; }
+  .field select:disabled{ opacity:.55; cursor:not-allowed; }
   .field input:focus, .field textarea:focus, .field select:focus{ outline: 2px solid var(--sky); background-color:#fff; }
   .field input[type="date"]{ min-height: 42px; text-align:left; -webkit-appearance:none; appearance:none; padding:10px 12px; }
   #comments{
@@ -97,6 +98,29 @@
     flex:1; min-width:0; border:none; background:transparent; padding:10px 12px; font-size:15px; color:var(--ink); font-family:inherit;
   }
   .prefix-input input:focus{ outline:none; background:#fff; }
+
+  .date-btn{
+    width:100%; text-align:left; padding:10px 12px; border:1px solid var(--line); border-radius:10px;
+    font-size:15px; background: var(--paper); color: var(--ink); font-family: inherit; cursor:pointer;
+  }
+  .cal-popup{
+    margin-top:8px; background:#fff; border:1px solid var(--line); border-radius:12px; padding:10px;
+    box-shadow: 0 6px 20px rgba(15,42,67,.1);
+  }
+  .cal-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+  .cal-nav{ border:none; background:var(--paper); width:30px; height:30px; border-radius:8px; font-size:16px; font-weight:800; color:var(--navy); cursor:pointer; }
+  .cal-title{ font-size:13.5px; font-weight:800; color:var(--navy); }
+  .cal-weekdays{ display:grid; grid-template-columns: repeat(7,1fr); text-align:center; font-size:11px; color:var(--muted); font-weight:700; margin-bottom:4px; }
+  .cal-grid{ display:grid; grid-template-columns: repeat(7,1fr); grid-auto-rows: 38px; gap:2px; }
+  .cal-cell{
+    width:100%; height:38px; display:flex; align-items:center; justify-content:center; font-size:13px;
+    border:none; background:transparent; border-radius:8px; color:var(--ink); cursor:pointer; box-sizing:border-box;
+  }
+  .cal-cell.empty{ cursor:default; }
+  .cal-cell.disabled{ color:#C9D1D9; cursor:default; }
+  .cal-cell.today{ border:1px solid var(--sky); font-weight:800; }
+  .cal-cell.selected{ background: var(--navy); color:#fff; font-weight:800; }
+  .cal-footer{ margin-top:8px; font-size:11px; color:var(--muted); text-align:center; }
 
   .group-title{
     font-size: 12px; font-weight: 800; color: var(--sky); text-transform:uppercase; letter-spacing:.06em;
@@ -232,11 +256,42 @@
   const LS_HISTORY = "ojt_history";
   const LS_DRAFTS = "ojt_drafts_v2";
   const BLANK_HEADER = { date:"", position:"", empNo:"", aircraft:"", flightNo:"", trainee:"", hlNo:"", evaluator:"" };
+  function todayStr(){
+    const d = new Date();
+    const p = n => String(n).padStart(2,"0");
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+  }
+  function dateOffsetStr(offsetDays){
+    const d = new Date();
+    d.setDate(d.getDate() + offsetDays);
+    const p = n => String(n).padStart(2,"0");
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+  }
+  function freshHeader(){ return { ...BLANK_HEADER, date: todayStr() }; }
   const PREFIX_FIELDS = { flightNo: "WE", hlNo: "HL" };
+  const FULL_POSITION_SET = ["L1","L2","L3","L4","L1A","L2A","GL","R1","R2","R3","R4","R2A","GR"];
+  const POSITION_SETS = {
+    "A320": ["L1","L2","R1","R2","R2S"],
+    "A330": FULL_POSITION_SET,
+  };
+  function positionOptionsFor(aircraft){
+    if(!aircraft) return [];
+    return POSITION_SETS[aircraft] || FULL_POSITION_SET;
+  }
+
+  function toDateStr(d){
+    const p = n => String(n).padStart(2,"0");
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+  }
+  function fmtDisplayDate(str){
+    if(!str) return "";
+    const [y,m,d] = str.split("-");
+    return `${y}.${m}.${d}`;
+  }
 
   let state = {
     tab: "form",
-    header: { ...BLANK_HEADER },
+    header: freshHeader(),
     scores: {},
     optionChoice: {},
     comments: "",
@@ -247,6 +302,10 @@
     submitting: false,
     fieldErrors: new Set(),
     itemErrors: new Set(),
+    hlNoForceCustom: false,
+    positionForceCustom: false,
+    datePickerOpen: false,
+    calendarMonth: new Date(),
   };
   let draftSaveTimer = null;
 
@@ -317,11 +376,13 @@
     clearTimeout(draftSaveTimer);
     if(!hasFormContent()){ showToast("저장할 내용이 없어요"); return; }
     upsertCurrentDraft();
-    state.header = { ...BLANK_HEADER };
+    state.header = freshHeader();
     state.scores = {};
     state.optionChoice = {};
     state.comments = "";
     state.currentDraftId = null;
+    state.hlNoForceCustom = false;
+    state.positionForceCustom = false;
     showToast("임시저장 완료 · 새 평가를 작성할 수 있어요");
     render();
   }
@@ -333,6 +394,8 @@
     state.optionChoice = { ...d.optionChoice };
     state.comments = d.comments || "";
     state.currentDraftId = d.id;
+    state.hlNoForceCustom = false;
+    state.positionForceCustom = false;
     state.tab = "form";
     render();
   }
@@ -340,8 +403,8 @@
     state.drafts = state.drafts.filter(d=>d.id!==id);
     saveDrafts();
     if(state.currentDraftId === id){
-      state.header = { ...BLANK_HEADER };
-      state.scores = {}; state.optionChoice = {}; state.comments = ""; state.currentDraftId = null;
+      state.header = freshHeader();
+      state.scores = {}; state.optionChoice = {}; state.comments = ""; state.currentDraftId = null; state.hlNoForceCustom = false; state.positionForceCustom = false;
     }
     showToast("임시저장본을 삭제했어요");
     render();
@@ -371,8 +434,8 @@
     if(state.submitting) return;
     const h = state.header;
     const required = [
-      ["position","Position"], ["empNo","사번"], ["aircraft","Aircraft Type"],
-      ["flightNo","편명"], ["trainee","피평가자"], ["hlNo","HL NO."], ["evaluator","평가자"],
+      ["position","Position"], ["empNo","EMP NO"], ["aircraft","Aircraft Type"],
+      ["flightNo","FLT NO"], ["trainee","피평가자"], ["hlNo","HL NO"], ["evaluator","평가자"],
     ];
     const missingFields = required.filter(([key]) => !isFieldFilled(key));
     if(missingFields.length > 0){
@@ -422,11 +485,13 @@
         state.drafts = state.drafts.filter(d=>d.id!==state.currentDraftId);
         saveDrafts();
       }
-      state.header = { ...BLANK_HEADER };
+      state.header = freshHeader();
       state.scores = {};
       state.optionChoice = {};
       state.comments = "";
       state.currentDraftId = null;
+      state.hlNoForceCustom = false;
+      state.positionForceCustom = false;
       state.tab = "history";
       state.submitting = false;
       showToast(synced ? "제출 완료" : "오프라인 상태예요 · 이 기기에 저장됨, 온라인 되면 재전송 버튼을 눌러주세요");
@@ -466,20 +531,21 @@
   function headerField(key, label, placeholder, type){
     type = type || "text";
     const err = state.fieldErrors.has(key) ? "field-error" : "";
+    const dateLock = type === "date" ? `min="${dateOffsetStr(-4)}" max="${dateOffsetStr(4)}"` : "";
     return `
       <div class="field">
         <label>${label}</label>
-        <input id="field-${key}" class="${err}" data-key="${key}" type="${type}" value="${state.header[key] ? escapeHtml(state.header[key]) : ""}" placeholder="${placeholder||""}" />
+        <input id="field-${key}" class="${err}" data-key="${key}" type="${type}" ${dateLock} value="${state.header[key] ? escapeHtml(state.header[key]) : ""}" placeholder="${placeholder||""}" />
       </div>`;
   }
-  function headerSelect(key, label, options){
+  function headerSelect(key, label, options, disabled, disabledHint){
     const cur = state.header[key] || "";
     const err = state.fieldErrors.has(key) ? "field-error" : "";
     return `
       <div class="field">
         <label>${label}</label>
-        <select id="field-${key}" class="${err}" data-key="${key}">
-          <option value="" ${cur===""?"selected":""}>선택</option>
+        <select id="field-${key}" class="${err}" data-key="${key}" ${disabled ? "disabled" : ""}>
+          <option value="" ${cur===""?"selected":""}>${disabled && disabledHint ? disabledHint : "선택"}</option>
           ${options.map(o=>`<option value="${escapeHtml(o)}" ${cur===o?"selected":""}>${escapeHtml(o)}</option>`).join("")}
         </select>
       </div>`;
@@ -498,6 +564,119 @@
       </div>`;
   }
 
+  const HL_SETS = {
+    "A320": ["8741","8742"],
+    "A330": ["8709","8714","8768"],
+  };
+  function hlPresetsFor(aircraft){
+    if(!aircraft) return [];
+    return HL_SETS[aircraft] || [];
+  }
+  function hlNoMode(){
+    const digits = getDigits("hlNo");
+    if(state.hlNoForceCustom) return "custom";
+    if(digits === "") return "";
+    if(hlPresetsFor(state.header.aircraft).includes(digits)) return digits;
+    return "custom";
+  }
+  function hlNoField(){
+    const digits = getDigits("hlNo");
+    const mode = hlNoMode();
+    const err = state.fieldErrors.has("hlNo") ? "field-error" : "";
+    const presets = hlPresetsFor(state.header.aircraft);
+    const hasAircraft = !!state.header.aircraft;
+    return `
+      <div class="field">
+        <label>HL NO *</label>
+        <select id="hlNo-select" class="${mode!=='custom'?err:''}">
+          <option value="" ${mode===""?"selected":""}>선택</option>
+          ${hasAircraft ? presets.map(p=>`<option value="${p}" ${mode===p?"selected":""}>HL${p}</option>`).join("") : ""}
+          ${hasAircraft ? `<option value="기타" ${mode==='custom'?"selected":""}>기타 (직접 입력)</option>` : ""}
+        </select>
+        ${mode==='custom' ? `
+        <div class="prefix-input ${err}" style="margin-top:6px;">
+          <span class="prefix-tag">HL</span>
+          <input id="field-hlNo" data-key="hlNo" data-prefix="HL" inputmode="numeric" pattern="[0-9]*" value="${escapeHtml(digits)}" placeholder="예: 8709" />
+        </div>` : ``}
+      </div>`;
+  }
+
+  function positionMode(){
+    const val = state.header.position || "";
+    if(state.positionForceCustom) return "custom";
+    if(val === "") return "";
+    if(positionOptionsFor(state.header.aircraft).includes(val)) return val;
+    return "custom";
+  }
+  function positionField(){
+    const mode = positionMode();
+    const err = state.fieldErrors.has("position") ? "field-error" : "";
+    const presets = positionOptionsFor(state.header.aircraft);
+    const hasAircraft = !!state.header.aircraft;
+    const customVal = mode === "custom" ? (state.header.position || "") : "";
+    return `
+      <div class="field">
+        <label>Position *</label>
+        <select id="position-select" class="${mode!=='custom'?err:''}">
+          <option value="" ${mode===""?"selected":""}>선택</option>
+          ${hasAircraft ? presets.map(p=>`<option value="${p}" ${mode===p?"selected":""}>${p}</option>`).join("") : ""}
+          ${hasAircraft ? `<option value="기타" ${mode==='custom'?"selected":""}>기타 (직접 입력)</option>` : ""}
+        </select>
+        ${mode==='custom' ? `
+        <input id="field-position" data-key="position" class="${err}" style="margin-top:6px;" value="${escapeHtml(customVal)}" placeholder="직접 입력" />
+        ` : ``}
+      </div>`;
+  }
+
+  function dateField(){
+    const err = state.fieldErrors.has("date") ? "field-error" : "";
+    const display = state.header.date ? fmtDisplayDate(state.header.date) : "";
+    return `
+      <div class="field">
+        <label>일자</label>
+        <button type="button" id="date-toggle" class="date-btn ${err}">${display || "날짜 선택"}</button>
+        ${renderDatePicker()}
+      </div>`;
+  }
+
+  function renderDatePicker(){
+    if(!state.datePickerOpen) return "";
+    const minD = new Date(dateOffsetStr(-4) + "T00:00:00");
+    const maxD = new Date(dateOffsetStr(4) + "T00:00:00");
+    const cal = state.calendarMonth;
+    const year = cal.getFullYear(), month = cal.getMonth();
+    const firstWeekday = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const todayD = todayStr();
+
+    let cells = "";
+    for(let i = 0; i < firstWeekday; i++) cells += `<div class="cal-cell empty"></div>`;
+    for(let day = 1; day <= daysInMonth; day++){
+      const d = new Date(year, month, day);
+      const dStr = toDateStr(d);
+      const inRange = d >= minD && d <= maxD;
+      const isSelected = state.header.date === dStr;
+      const isToday = dStr === todayD;
+      if(inRange){
+        cells += `<button type="button" class="cal-cell ${isSelected?'selected':''} ${isToday?'today':''}" data-date="${dStr}">${day}</button>`;
+      } else {
+        cells += `<div class="cal-cell disabled">${day}</div>`;
+      }
+    }
+
+    return `
+      <div class="cal-popup">
+        <div class="cal-header">
+          <button type="button" class="cal-nav" data-nav="-1">‹</button>
+          <div class="cal-title">${year}년 ${month+1}월</div>
+          <button type="button" class="cal-nav" data-nav="1">›</button>
+        </div>
+        <div class="cal-weekdays">${["일","월","화","수","목","금","토"].map(w=>`<div>${w}</div>`).join("")}</div>
+        <div class="cal-grid">${cells}</div>
+        <div class="cal-footer">선택 가능 범위: ${fmtDisplayDate(dateOffsetStr(-4))} ~ ${fmtDisplayDate(dateOffsetStr(4))}</div>
+      </div>`;
+  }
+
   function renderForm(){
     let html = ``;
     if(state.currentDraftId){
@@ -513,20 +692,20 @@
         <div class="card">
           <h2>평가 정보</h2>
           <div class="field-grid">
-            ${headerField("date","일자","", "date")}
-            ${headerField("position","Position *","예: L2")}
+            ${dateField()}
+            ${headerSelect("aircraft","Aircraft Type *", ["A320","A330"])}
           </div>
           <div class="field-grid">
-            ${headerField("empNo","사번 *","사번 입력")}
-            ${headerSelect("aircraft","Aircraft Type *", ["A320-200","A330-200"])}
+            ${hlNoField()}
+            ${prefixField("flightNo","FLT NO *","예: 201")}
           </div>
           <div class="field-grid">
-            ${prefixField("flightNo","편명 *","예: 201")}
-            ${headerField("trainee","피평가자 *","이름")}
+            ${headerField("empNo","EMP NO *","사번")}
+            ${positionField()}
           </div>
           <div class="field-grid">
-            ${prefixField("hlNo","HL NO. *","예: 8709")}
             ${headerField("evaluator","평가자 *","이름")}
+            ${headerField("trainee","피평가자 *","이름")}
           </div>
         </div>
       </div>`;
@@ -638,7 +817,6 @@
         <button class="tab ${state.tab==='drafts'?'active':''}" data-tab="drafts">임시저장 (${state.drafts.length})</button>
         <button class="tab ${state.tab==='history'?'active':''}" data-tab="history">제출 내역 (${state.history.length})</button>
       </div>
-      ${state.tab === 'history' ? `<div class="section" style="padding-bottom:0"><div class="link-note" style="margin:0;">최근 제출한 순서로 표시되며, 제출 1개월이 지난 내역은 이 기기에서 자동으로 삭제돼요 (구글 시트 원본은 그대로 남아있어요)</div></div>` : ``}
       ${state.tab === 'form' ? renderForm() : (state.tab === 'drafts' ? renderDrafts() : renderHistory())}
       ${state.tab === 'form' ? `
       <div class="bottombar">
@@ -662,6 +840,62 @@
         render();
       });
     });
+    const dtBtn = document.getElementById("date-toggle");
+    if(dtBtn) dtBtn.addEventListener("click", ()=>{
+      state.datePickerOpen = !state.datePickerOpen;
+      if(state.datePickerOpen){
+        state.calendarMonth = new Date((state.header.date || todayStr()) + "T00:00:00");
+      }
+      render();
+    });
+    root.querySelectorAll(".cal-nav").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        state.calendarMonth.setMonth(state.calendarMonth.getMonth() + parseInt(btn.dataset.nav,10));
+        state.calendarMonth = new Date(state.calendarMonth);
+        render();
+      });
+    });
+    root.querySelectorAll(".cal-cell[data-date]").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        state.header.date = btn.dataset.date;
+        state.datePickerOpen = false;
+        state.fieldErrors.delete("date");
+        scheduleDraftSave();
+        render();
+      });
+    });
+    const hlSel = document.getElementById("hlNo-select");
+    if(hlSel) hlSel.addEventListener("change", ()=>{
+      if(hlSel.value === ""){
+        state.header.hlNo = "";
+        state.hlNoForceCustom = false;
+      } else if(hlSel.value === "기타"){
+        state.header.hlNo = "";
+        state.hlNoForceCustom = true;
+      } else {
+        state.header.hlNo = "HL" + hlSel.value;
+        state.hlNoForceCustom = false;
+      }
+      state.fieldErrors.delete("hlNo");
+      scheduleDraftSave();
+      render();
+    });
+    const posSel = document.getElementById("position-select");
+    if(posSel) posSel.addEventListener("change", ()=>{
+      if(posSel.value === ""){
+        state.header.position = "";
+        state.positionForceCustom = false;
+      } else if(posSel.value === "기타"){
+        state.header.position = "";
+        state.positionForceCustom = true;
+      } else {
+        state.header.position = posSel.value;
+        state.positionForceCustom = false;
+      }
+      state.fieldErrors.delete("position");
+      scheduleDraftSave();
+      render();
+    });
     root.querySelectorAll("[data-key]").forEach(inp=>{
       const applyValue = ()=>{
         const key = inp.dataset.key;
@@ -680,6 +914,22 @@
           if(wrap) wrap.classList.remove("field-error");
         }
         scheduleDraftSave();
+        if(key === "aircraft"){
+          if(!state.positionForceCustom){
+            const allowedPos = positionOptionsFor(state.header.aircraft);
+            if(state.header.position && !allowedPos.includes(state.header.position)){
+              state.header.position = "";
+            }
+          }
+          if(!state.hlNoForceCustom){
+            const allowedHl = hlPresetsFor(state.header.aircraft);
+            const curDigits = getDigits("hlNo");
+            if(curDigits && !allowedHl.includes(curDigits)){
+              state.header.hlNo = "";
+            }
+          }
+          render();
+        }
       };
       inp.addEventListener("input", applyValue);
       inp.addEventListener("change", applyValue);
